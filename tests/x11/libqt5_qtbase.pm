@@ -21,6 +21,13 @@ use version_utils 'is_sle';
 use registration qw(cleanup_registration register_product add_suseconnect_product get_addon_fullname remove_suseconnect_product);
 
 sub run {
+    if (is_sle) {
+        select_console 'root-console';
+        # Activating development-tools module to install libqt5-qttools package
+        register_product();
+        add_suseconnect_product("sle-module-development-tools");
+    }
+
     select_console('x11');
     ensure_installed("libqt5-qttools yast2-installation", timeout => 180);
 
