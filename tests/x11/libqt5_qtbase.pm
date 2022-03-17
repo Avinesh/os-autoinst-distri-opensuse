@@ -21,8 +21,9 @@ use version_utils 'is_sle';
 use registration qw(cleanup_registration register_product add_suseconnect_product get_addon_fullname remove_suseconnect_product);
 
 sub run {
-    if (is_sle) {
-        select_console 'root-console';
+    if (is_sle('>=15-sp4')) {
+        my $self = shift;
+        $self->select_serial_terminal;
         # Activating development-tools module to install libqt5-qttools package
         register_product();
         add_suseconnect_product("sle-module-development-tools");
