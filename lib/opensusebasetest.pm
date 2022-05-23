@@ -62,6 +62,7 @@ this method, must call this baseclass method from the overwriting method.
 sub pre_run_hook {
     my ($self) = @_;
     clear_started_systemd_services();
+    clear_installed_packages();
 }
 
 =head2 post_run_hook

@@ -94,6 +94,8 @@ our @EXPORT = qw(
   permit_root_ssh_in_sol
   cleanup_disk_space
   package_upgrade_check
+  get_installed_packages
+  clear_installed_packages
 );
 
 =head1 SYNOPSIS
@@ -508,6 +510,10 @@ sub get_netboot_mirror {
     return get_var('MIRROR_' . uc($m_protocol));
 }
 
+
+my @installed_packages;
+
+
 =head2 zypper_call
 
  zypper_call($command [, exitcode => $exitcode] [, timeout => $timeout] [, log => $log] [, dumb_term => $dumb_term]);
@@ -572,6 +578,14 @@ sub zypper_call {
     }
     upload_logs("/tmp/$log") if $log;
 
+    my @cmd_as_array = split (/ /, $command);
+    my $zypper_op = shift @cmd_as_array;
+    if ($zypper_op eq 'in' or $zypper_op eq 'install') {
+        foreach (@array) {
+            push(@installed_packages, "$_");
+        }
+    }
+
     unless (grep { $_ == $ret } @$allow_exit_codes) {
         upload_logs('/var/log/zypper.log');
         my $msg = "'zypper -n $command' failed with code $ret";
@@ -594,6 +608,14 @@ sub zypper_call {
     }
     $IN_ZYPPER_CALL = 0;
     return $ret;
+}
+
+sub get_installed_packages {
+    return @installed_packages;
+}
+
+sub clear_installed_packages {
+    @installed_packages = ();
 }
 
 
