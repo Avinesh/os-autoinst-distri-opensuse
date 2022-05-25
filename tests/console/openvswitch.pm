@@ -27,8 +27,8 @@ sub run {
     my $self = shift;
     $self->select_serial_terminal;
 
-    # $pkg_name = 'openvswitch' if is_sle('>=15');
-    $pkg_name = 'openvswitch';
+    # my $pkg_name = 'openvswitch' if is_sle('>=15');
+    my $pkg_name = 'openvswitch';
     $pkg_name = 'openvswitch-switch' if is_sle('=12-sp2');
 
     zypper_call("in $pkg_name iputils", timeout => 300);
