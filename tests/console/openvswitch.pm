@@ -26,7 +26,11 @@ sub run {
     my $self = shift;
     $self->select_serial_terminal;
 
-    zypper_call('in openvswitch iputils', timeout => 300);
+    # $pkg_name = 'openvswitch' if is_sle('>=15');
+    $pkg_name = 'openvswitch';
+    $pkg_name = 'openvswitch-switch' if is_sle('=12-sp2);
+
+    zypper_call("in $pkg_name iputils", timeout => 300);
 
     # Start the openvswitch daemon
     systemctl 'start openvswitch', timeout => 200;
