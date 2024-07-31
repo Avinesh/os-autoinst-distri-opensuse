@@ -37,6 +37,7 @@ sub run {
     zypper_ar($kmp_repo, name => 'KMP', priority => 90, no_gpg_check => 1) if $kmp_repo;
     # Install latest kernel
     zypper_call("in -l kernel-default");
+    record_info('KERNEL pkg', script_output('rpm -qa | grep kernel-default', proceed_on_failure => 1));
     # Check for multiple kernel installation
     assert_script_run '[ "$(zypper se -s kernel-default | grep -c i+)" = "1" ]', fail_message => 'More than one kernel was installed';
     # Reboot system after kernel installation
