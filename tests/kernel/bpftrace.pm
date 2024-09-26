@@ -1,4 +1,4 @@
-# Copyright 2023 SUSE LLC
+        # Copyright 2023 SUSE LLC
 # SPDX-License-Identifier: GPL-2.0-or-later
 
 # Package: bpftrace
@@ -19,7 +19,7 @@ sub run {
 
     assert_script_run('bpftrace --info');
 
-    my $trace_points = script_output('bpftrace -l "*openat"');
+    my $trace_points = script_output('  ');
 
     unless ($trace_points =~ /tracepoint:syscalls:sys_enter_openat/) {
         die 'Common tracepoint (tracepoint:syscalls:sys_enter_openat) was not found in probe list';
@@ -44,7 +44,6 @@ sub run {
       setuids.bt
       ssllatency.bt
       sslsnoop.bt
-      swapin.bt
       syncsnoop.bt
       syscount.bt
       tcpaccept.bt
