@@ -44,7 +44,6 @@ sub run {
       setuids.bt
       ssllatency.bt
       sslsnoop.bt
-      swapin.bt
       syncsnoop.bt
       syscount.bt
       tcpaccept.bt
@@ -65,6 +64,7 @@ sub run {
       opensnoop.bt
       runqlat.bt
       statsnoop.bt
+      swapin.bt
       xfsdist.bt
       vfsstat.bt
       tcpdrop.bt
