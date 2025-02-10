@@ -120,7 +120,6 @@ sub install_runtime_dependencies_network {
     my @deps;
     @deps = qw(
       dhcp-client
-      dhcp-server
       diffutils
       dnsmasq
       ethtool
@@ -136,6 +135,7 @@ sub install_runtime_dependencies_network {
     zypper_call('-t in ' . join(' ', @deps));
 
     my @maybe_deps = qw(
+      dhcp-server
       telnet-server
       wireguard-tools
       xinetd
