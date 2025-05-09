@@ -71,6 +71,7 @@ sub run {
         # If click No, step is skipped, which is default behavior
         wait_screen_change { send_key 'alt-n' };
     }
+    sleep 60;
 }
 
 1;
