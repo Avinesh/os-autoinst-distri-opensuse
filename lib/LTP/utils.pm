@@ -514,6 +514,7 @@ sub install_from_repo {
           q(/testcases/bin/openposix/conformance/interfaces/ -name '*.run-test' > )
           . get_ltp_openposix_test_list_file($want_32bit);
     }
+    zypper_call('rm bcachefs-tools');
 }
 
 sub prepare_whitelist_environment {
