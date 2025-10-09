@@ -514,6 +514,13 @@ sub install_from_repo {
           q(/testcases/bin/openposix/conformance/interfaces/ -name '*.run-test' > )
           . get_ltp_openposix_test_list_file($want_32bit);
     }
+
+    # remove bcachefs-tools package if it was installed as a recommends with ltp package
+    if (is_transactional) {
+        script_run('transactional-update -n -c pkg remove bcachefs-tools');
+    } else {
+        script_run('zypper -n rm bcachefs-tools');
+    }
 }
 
 sub prepare_whitelist_environment {
