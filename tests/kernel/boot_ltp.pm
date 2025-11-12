@@ -14,10 +14,12 @@ use testapi;
 use serial_terminal 'select_serial_terminal';
 use Utils::Backends;
 use LTP::utils;
-use version_utils qw(is_jeos is_sle is_sle_micro);
+use version_utils qw(is_jeos is_sle is_sle_micro is_bootloader_grub2_bls);
 use utils 'assert_secureboot_status';
 use kdump_utils;
 use package_utils;
+
+use constant BLS_DEFAULT_FILE => "/etc/kernel/cmdline";
 
 sub run {
     my ($self) = @_;
@@ -54,6 +56,21 @@ sub run {
     # Initialize VNC console now to avoid login attempts on frozen system
     select_console('root-console') if get_var('LTP_DEBUG');
     select_serial_terminal;
+
+    if (is_bootloader_grub2_bls && get_var('GRUB_PARAM')) {
+            my @grub_params = grep { /\S/ } split(/\s*;\s*/, trim(get_var('GRUB_PARAM', '')));
+
+            bmwqemu::fctinfo("Number of GRUB_PARAM params (empty skipped): " . $#grub_params);
+
+            return unless $#grub_params >= 0;
+
+            my $params_str = join(' ', @grub_params);
+
+            assert_script_run("sed -ie '\$a\\$params_str' " . BLS_DEFAULT_FILE);
+            assert_script_run('sdbootutil update-all-entries');
+            power_action('reboot', textmode => 1);
+            $self->wait_boot(bootloader_time => 300);
+    }
 
     # Debug code for poo#81142
     script_run('gzip -9 </dev/fb0 >framebuffer.dat.gz');
