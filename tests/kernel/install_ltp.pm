@@ -332,7 +332,7 @@ sub run {
         add_grub_cmdline_settings($grub_param, update_grub => 1);
     }
 
-    add_custom_grub_entries if (is_sle('12+') || is_opensuse || is_transactional) && !is_jeos;
+#    add_custom_grub_entries if (is_sle('12+') || is_opensuse || is_transactional) && !is_jeos;
 
     if (is_xen_host) {
         my $version = get_var('VERSION');
