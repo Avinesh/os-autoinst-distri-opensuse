@@ -18,6 +18,7 @@ use utils;
 use version_utils;
 use mm_network;
 use Utils::Backends;
+use serial_terminal qw(select_serial_terminal);
 
 use backend::svirt qw(SERIAL_TERMINAL_DEFAULT_DEVICE SERIAL_TERMINAL_DEFAULT_PORT SERIAL_CONSOLE_DEFAULT_DEVICE SERIAL_CONSOLE_DEFAULT_PORT SERIAL_USER_TERMINAL_DEFAULT_DEVICE SERIAL_USER_TERMINAL_DEFAULT_PORT);
 
@@ -55,6 +56,7 @@ our @EXPORT = qw(
   ensure_shim_import
   GRUB_CFG_FILE
   GRUB_DEFAULT_FILE
+  modify_grub_parameters_grub2_bls
   add_grub_cmdline_settings
   add_grub_xen_replace_cmdline_settings
   change_grub_config
@@ -246,6 +248,19 @@ sub boot_grub_item {
     }
     save_screenshot;
     grub_key_enter;
+}
+
+
+sub modify_grub_parameters_grub2_bls {
+    my $args = get_var('GRUB_ARGS');
+    $args =~ s/,/ /g;
+
+    select_serial_terminal;
+
+    assert_script_run("sed -i 's/\$/ $args/' /etc/kernel/cmdline");
+    script_output("cat /etc/kernel/cmdline");
+    record_info('modifying grub entry using the updated /etc/kernel/cmdline');
+    assert_script_run('sdbootutil update-entry $(uname -r)');
 }
 
 sub get_scsi_id {
