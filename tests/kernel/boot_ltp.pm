@@ -43,6 +43,8 @@ sub run {
         $self->wait_boot(ready_time => 1800);
     }
 
+    init_debug;    # calls select_serial_terminal
+
     # if we need to test with modified grub parameters
     if (get_var('GRUB_ARGS') && is_bootloader_grub2_bls()) {
 
@@ -53,7 +55,6 @@ sub run {
         $self->wait_boot(ready_time => 1800);
     }
 
-    init_debug;    # calls select_serial_terminal
 
     run_supportconfig;
 
