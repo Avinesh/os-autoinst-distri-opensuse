@@ -664,6 +664,12 @@ sub handle_pxeboot {
 
 sub grub_select {
     save_screenshot;
+
+    if (get_var('GRUB_ARGS')) {
+        send_key 'ret';
+        return;
+    }
+
     if ((my $grub_nondefault = get_var('GRUB_BOOT_NONDEFAULT', 0)) gt 0) {
         my $menu = $grub_nondefault * 2 + 1;
         bmwqemu::fctinfo("Boot non-default grub option $grub_nondefault (menu item $menu)");
