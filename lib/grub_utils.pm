@@ -44,8 +44,7 @@ sub grub_test {
     stop_grub_timeout;
     boot_into_snapshot if get_var("BOOT_TO_SNAPSHOT");
     send_key_until_needlematch("bootmenu-xen-kernel", 'down', 11, 5) if get_var('XEN');
-    if ((is_aarch64 && is_sle && get_var('PLYMOUTH_DEBUG'))
-        || get_var('GRUB_KERNEL_OPTION_APPEND'))
+    if (is_aarch64 && is_sle && get_var('PLYMOUTH_DEBUG'))
     {
         bug_workaround_bsc1005313() unless get_var("BOOT_TO_SNAPSHOT");
     }
