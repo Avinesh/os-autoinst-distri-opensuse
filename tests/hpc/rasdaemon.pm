@@ -66,8 +66,8 @@ sub run {
     # we are interested in installation only
     return if (is_ppc64le && is_tumbleweed);
 
-    $rt = assert_script_run('! ras-mc-ctl --status');
-    test_case('Check rasdaemon --status', 'drivers are not loaded', $rt);
+    $rt = assert_script_run('ras-mc-ctl --status');
+    test_case('Check rasdaemon --status', 'drivers are loaded', $rt);
 
     # Try to start rasdaemon. May need a restart on aarch64.
     $rt = systemctl('start rasdaemon');
