@@ -469,6 +469,19 @@ sub check_function {
         if (!is_transactional) {
             $crash_cmd = "echo exit | crash `ls -1t $vmcore_glob | head -n1` $vmlinux_glob";
         }
+        if (!is_transactional) {
+            # For kernel > 7.0 the vmlinux in /usr/lib/modules/ may be a non-SMP stub;
+            # always resolve the real vmlinux from the debuginfo package.
+            my $vmlinux;
+            if (!get_var('SKIP_KERNEL_DEBUGINFO')) {
+                my $debuginfo = determine_kernel_debuginfo_package;
+                $vmlinux = script_output("rpm -ql ${debuginfo} | grep '/vmlinux$'");
+            } else {
+                # Fallback: pick the compressed/full vmlinux explicitly
+                $vmlinux = script_output("ls -1 $vmlinux_glob | grep -v '\.gz$' | tail -n1 || ls -1t $vmlinux_glob | head -n1");
+            }
+            $crash_cmd = "echo exit | crash `ls -1t $vmcore_glob | head -n1` $vmlinux";
+        }
         elsif (!get_var('SKIP_KERNEL_DEBUGINFO')) {
             my $vmcore = script_output("ls -1t $vmcore_glob");
             my $vmlinux = script_output("ls -1t $vmlinux_glob");
