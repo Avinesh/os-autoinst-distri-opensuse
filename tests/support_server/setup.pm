@@ -761,8 +761,8 @@ sub pre_run_hook {
     assert_script_run q|sed -i -e '/^include \"\/etc\/named.d\/openqa.zones\";/ s/^/#/' /etc/named.conf|
       unless (script_run q|grep -E "^include \"/etc/named.d/openqa.zones\";" /etc/named.conf|);
 
-    # Disable gpg cheks in zypper globaly
-    assert_script_run(q|sed -i -e '/^# repo_gpgcheck =/ i gpgcheck = off' /etc/zypp/zypp.conf|);
+    # # Disable gpg checks in zypper globally using a drop-in file
+    assert_script_run(q|mkdir -p /etc/zypp/zypp.conf.d && echo -e "[main]\ngpgcheck = off" > /etc/zypp/zypp.conf.d/99-nogpgcheck.conf|);
 
     # Disable GNOME screen saver and suspend
     turnoff_gnome_screensaver_and_suspend if check_var('DESKTOP', 'gnome');
