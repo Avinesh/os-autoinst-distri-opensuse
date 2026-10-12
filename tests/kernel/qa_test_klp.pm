@@ -38,13 +38,18 @@ sub run {
     enable_debugfs() unless is_debugfs_mounted();
 
     if (script_run('[ -d /lib/modules/$(uname -r)/build ]') != 0) {
-        my $devel_pack = get_kernel_devel_flavor;
+        # The "build" symlink comes from kernel-<flavor>-devel.
+        # Install it explicitly and pin it to the installed kernel.
+        my $devel_libs = get_kernel_devel_libs;
+        (my $kernel_pack = $devel_libs) =~ s/-devel$//;
+        my $kver = script_output("rpm -q --qf '%{VERSION}-%{RELEASE}' $kernel_pack");
 
-        # Force recommended packages to pull in kernel-default-devel, etc.
-        install_package("--recommends $devel_pack", trup_continue => 1);
+        install_package(join(' ', get_kernel_devel_flavor, "$devel_libs=$kver"), trup_continue => 1);
     }
 
     reboot_on_changes;
+
+    assert_script_run('[ -d /lib/modules/$(uname -r)/build ]', fail_message => 'Kernel build directory is missing after installing the devel package');
 
     assert_script_run('git config --global http.sslVerify false');
     assert_script_run('git clone ' . $git_repo);
