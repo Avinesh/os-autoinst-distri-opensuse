@@ -466,7 +466,7 @@ sub check_function {
           ? '/boot/vmlinux-$(uname -r)*'
           : '/usr/lib/modules/$(uname -r)/vmlinux*';
         if (!is_transactional) {
-            $crash_cmd = "echo exit | crash `ls -1t $vmcore_glob | head -n1` $vmlinux_glob";
+            $crash_cmd = "echo exit | crash -d1 `ls -1t $vmcore_glob | head -n1` $vmlinux_glob";
         }
         elsif (!get_var('SKIP_KERNEL_DEBUGINFO')) {
             my $vmcore = script_output("ls -1t $vmcore_glob");
