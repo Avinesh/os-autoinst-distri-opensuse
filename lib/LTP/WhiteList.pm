@@ -62,7 +62,7 @@ sub _download_whitelist {
 }
 
 sub find_whitelist_entry {
-    my ($self, $env, $suite, $test) = @_;
+    my ($self, $env, $suite, $test, %args) = @_;
 
     $suite = $self->{whitelist}->{$suite};
     return undef unless ($suite);
@@ -81,9 +81,28 @@ sub find_whitelist_entry {
     }
 
     foreach my $cond (@issues) {
+        # Entries with 'retry' only schedule reruns, they never override a result
+        next if (exists $cond->{retry}) xor $args{retry};
         return $cond if (_whitelist_entry_match($cond, $env));
     }
 
+    return undef;
+}
+
+# Returns the entry which makes a failed test run again, undef if there is none.
+# The entry has 'retry' set to the number of additional runs, e.g.
+#   openposix:
+#     pthread_join_speculative_6-1:
+#       - retry: 3
+#         message: flaky
+sub find_retry_entry {
+    my ($self, $env, $suite, $test) = @_;
+    my $entry = $self->find_whitelist_entry($env, $suite, $test, retry => 1);
+
+    return undef unless defined($entry);
+    return $entry if ($entry->{retry} // '') =~ /^[1-9]\d*$/;
+
+    bmwqemu::diag("Ignoring invalid retry '" . ($entry->{retry} // 'undef') . "' for LTP:$suite:$test, expected a positive integer");
     return undef;
 }
 

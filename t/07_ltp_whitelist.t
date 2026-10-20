@@ -137,4 +137,45 @@ subtest override_known_failures => sub {
 
 };
 
+
+subtest retry_entries => sub {
+    my $tmpfile = tempfile;
+    set_var('LTP_KNOWN_ISSUES_LOCAL' => "$tmpfile");
+    my $self = Test::MockObject->new();
+    my $softfail = 0;
+    $self->mock('record_soft_failure_result' => sub { $softfail++ });
+
+    my $known_issues_json = {
+        testsuite_01 => {
+            test_01 => [
+                {product => '^sle:15', retry => 3, message => 'flaky on 15'},
+                {product => '^sle:12', retry => 'many'},
+                {product => '^sle:11', retry => 2},
+                {product => '^sle:11', retval => '^1$', message => 'known failure on 11'},
+            ],
+            '*' => [
+                {test => '^test_wild', retry => 2}
+            ],
+        }
+    };
+
+    $tmpfile->spew(Mojo::JSON::encode_json($known_issues_json));
+    my $whitelist = LTP::WhiteList->new();
+
+    my $entry = $whitelist->find_retry_entry({product => 'sle:15'}, 'testsuite_01', 'test_01');
+    is($entry->{retry}, 3, 'Retry entry is found');
+    is($entry->{message}, 'flaky on 15', 'Retry entry has the message');
+
+    is($whitelist->find_retry_entry({product => 'sle:12'}, 'testsuite_01', 'test_01'), undef, 'Invalid retry is ignored');
+    is($whitelist->find_retry_entry({product => 'sle:99'}, 'testsuite_01', 'test_01'), undef, 'No retry entry for other product');
+    is($whitelist->find_retry_entry({product => 'sle:15'}, 'testsuite_01', 'unknown_test'), undef, 'No retry entry for other test');
+    is($whitelist->find_retry_entry({}, 'unknown_suite', 'test_01'), undef, 'No retry entry for unknown suite');
+    is($whitelist->find_retry_entry({}, 'testsuite_01', 'test_wild_01')->{retry}, 2, 'Retry entry is found by wildcard');
+
+    is($whitelist->override_known_failures($self, {product => 'sle:15', retval => 1}, 'testsuite_01', 'test_01'), 0, 'Retry entry does not override the result');
+    is($softfail, 0, 'No soft failure was recorded for a retry entry');
+    is($whitelist->override_known_failures($self, {product => 'sle:11', retval => 1}, 'testsuite_01', 'test_01'), 1, 'Retry entry does not hide a known failure');
+    is($softfail, 1, 'Soft failure was recorded for the known failure');
+};
+
 done_testing;

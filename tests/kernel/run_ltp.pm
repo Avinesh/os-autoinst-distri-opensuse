@@ -187,8 +187,11 @@ sub parse_openposix_log {
 }
 
 sub record_ltp_result {
-    my ($self, $suite, $test, $test_log, $fin_msg, $duration, $is_posix) = @_;
-    my ($details, $fh) = $self->start_result($test->{name}, $test->{name});
+    my ($self, $suite, $test, $test_log, $fin_msg, $duration, $is_posix, $attempt) = @_;
+    $attempt //= 1;
+    my $title = $test->{name};
+    $title .= ' (retry ' . ($attempt - 1) . ')' if $attempt > 1;
+    my ($details, $fh) = $self->start_result($test->{name}, $title);
     my $results;
 
     # Top level fields are required for all test suites, unless otherwise
@@ -258,14 +261,16 @@ sub record_ltp_result {
     }
 
     $self->commit_result($details, $fh);
-    $self->write_extra_test_result($export_details);
+    $self->write_extra_test_result($export_details, $attempt);
     return (0, $export_details);
 }
 
 sub write_extra_test_result {
-    my ($self, $details) = @_;
+    my ($self, $details, $attempt) = @_;
     my $dir = bmwqemu::result_dir();
     my $filename = $details->{test_fqn} =~ s/:/_/gr;
+    # Do not overwrite the files of the previous attempt
+    $filename .= '_retry' . ($attempt - 1) if ($attempt // 1) > 1;
     my $result = 'failed';
     $result = 'passed' if ($details->{test}->{result} eq 'PASS');
     $result = 'skipped' if ($details->{test}->{result} eq 'CONF');
@@ -375,15 +380,61 @@ sub run {
     my ($self, $tinfo) = @_;
     die 'Need LTP_COMMAND_FILE to know which tests to run' unless $tinfo && $tinfo->runfile;
     my $runfile = $tinfo->runfile;
+    my $test = $tinfo->test;
+    my $result_before = $self->{result};
+    my $attempt = 1;
+    my ($result_export, $retry_entry);
+
+    # A failed test is run again if the known issues list it with 'retry'. The
+    # result of the module is decided here, not by the first attempt.
+    while (1) {
+        $result_export = $self->run_attempt($tinfo, $attempt);
+        last unless ($self->{result} // '') eq 'fail';
+
+        my $entry = LTP::WhiteList->new()->find_retry_entry($self->{ltp_env}, $runfile, $test->{name});
+        last unless $entry && $attempt <= $entry->{retry};
+
+        $retry_entry = $entry;
+        my $info = "LTP:$runfile:$test->{name} failed, running it again as it is known to be flaky";
+        record_info("Retry $attempt/$entry->{retry}", join("\n", $info, $entry->{message} // ()));
+        $self->{result} = $result_before;
+        $attempt++;
+    }
+
+    if ($attempt > 1) {
+        my $name = "LTP:$runfile:$test->{name}";
+        $result_export->{test}->{attempts} = $attempt;
+
+        if (($self->{result} // '') eq 'fail') {
+            $self->record_resultfile('Retries exhausted', "$name failed all $attempt attempts", result => 'fail');
+        }
+        else {
+            my $msg = sprintf('%s is flaky, it failed %d time(s) before the result was %s on attempt %d',
+                $name, $attempt - 1, $result_export->{test}->{result}, $attempt);
+            $self->record_soft_failure_result(join("\n", $msg, $retry_entry->{message} // ()), force_status => 1);
+        }
+    }
+
+    push(@{$tinfo->test_result_export->{results}}, $result_export);
+
+    # reboot unless TCONF or last test
+    $self->do_reboot if (get_var('LTP_REBOOT_AFTER_TEST') && !$test->{last} && $self->{ltp_env}->{retval} != 32);
+}
+
+# Run the test case once and record the result of this attempt
+sub run_attempt {
+    my ($self, $tinfo, $attempt) = @_;
+    my $runfile = $tinfo->runfile;
     my $timeout = get_var('LTP_TIMEOUT') || 900;
     my $is_posix = $runfile =~ m/^\s*openposix\s*$/i;
     my $test_result_export = $tinfo->test_result_export;
     my $test = $tinfo->test;
     my %env = %{$test_result_export->{environment}};
     my $strace_log = "/tmp/$test->{name}.strace.txt";
+    my $command = $test->{command};
 
     if (check_var_array('LTP_DEBUG', 'strace')) {
-        $test->{command} = "strace -o $strace_log -f $test->{command}";
+        $command = "strace -o $strace_log -f $command";
     }
 
     $env{retval} = 'undefined';
@@ -391,9 +442,10 @@ sub run {
     $self->{ltp_tinfo} = $tinfo;
 
     my $fin_msg = "### TEST $test->{name} COMPLETE >>> ";
-    my $cmd_text = qq($test->{command}; echo "$fin_msg\$?.");
+    my $cmd_text = qq($command; echo "$fin_msg\$?.");
 
     my $klog_stamp = "OpenQA::run_ltp.pm: Starting $test->{name}";
+    $klog_stamp .= ' (retry ' . ($attempt - 1) . ')' if $attempt > 1;
     my $start_time = thetime();
 
     if (check_var_array('LTP_DEBUG', 'tcpdump')) {
@@ -421,7 +473,7 @@ sub run {
         enter_cmd("($cmd_text) 2>\&1 | tee /dev/$serialdev");
     }
     my $test_log = wait_serial(qr/$fin_msg\d+\./, $timeout, 0, record_output => 1);
-    my ($timed_out, $result_export) = $self->record_ltp_result($runfile, $test, $test_log, $fin_msg, thetime() - $start_time, $is_posix);
+    my ($timed_out, $result_export) = $self->record_ltp_result($runfile, $test, $test_log, $fin_msg, thetime() - $start_time, $is_posix, $attempt);
     $self->{timed_out} = $timed_out;
 
     if ($test_log =~ qr/$fin_msg(\d+)\.$/) {
@@ -430,8 +482,8 @@ sub run {
         $self->upload_tcpdump() if defined($self->{tcpdump_pid});
     }
 
-    push(@{$test_result_export->{results}}, $result_export);
     if ($timed_out) {
+        push(@{$test_result_export->{results}}, $result_export);
         if (get_var('LTP_DUMP_MEMORY_ON_TIMEOUT')) {
             save_memory_dump(filename => $test->{name});
         }
@@ -440,9 +492,7 @@ sub run {
 
     upload_logs($strace_log) if (check_var_array('LTP_DEBUG', 'strace'));
     script_run('vmstat -w');
-
-    # reboot unless TCONF or last test
-    $self->do_reboot if (get_var('LTP_REBOOT_AFTER_TEST') && !$test->{last} && $env{retval} != 32);
+    return $result_export;
 }
 
 # Only propogate death don't create it from failure [2]
@@ -484,6 +534,17 @@ executed by the shell.
 The output of each test case is parsed for lines containing CONF and FAIL.
 If these terms are found in the output then a neutral or fail result will be
 reported, otherwise a pass.
+
+A failed test case is run again, without a reboot, if an entry for it in the
+LTP_KNOWN_ISSUES file has 'retry' set to the number of additional runs. The
+entry takes the same selectors as other entries (product, arch, retval, ...).
+If a run passes, the module is reported as soft-failed and the earlier failures
+stay visible as steps. If all runs fail, the module fails. Example:
+
+  openposix:
+    pthread_join_speculative_6-1:
+      - retry: 3
+        message: Flaky, passes on a second run
 
 [2] This overrides the default basetest class behaviour because the LTP tests
     are able to continue after most failures (without reverting to a
