@@ -15,6 +15,11 @@ sub run {
     my ($self) = @_;
     select_console('root-console');
     configure_service(test_type => 'function', yast_interface => 'cli');
+
+    set_kdump_config('KDUMP_DUMPFORMAT', 'raw');
+    assert_script_run(q(grep -Fx 'KDUMP_DUMPFORMAT="raw"' /etc/sysconfig/kdump));
+    systemctl('restart kdump', timeout => 300);
+
     check_function(test_type => 'function');
 
 }
