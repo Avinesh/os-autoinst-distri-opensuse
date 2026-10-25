@@ -256,6 +256,8 @@ sub determine_crash_memory {
 # Activate kdump using command line tools
 sub activate_kdump_cli {
     set_kdump_config('KDUMP_SAVEDIR', get_var('KDUMP_SAVEDIR')) if get_var('KDUMP_SAVEDIR');
+    # Zero is a valid value (use all CPUs), so check the length, not the truth value
+    set_kdump_config('KDUMP_CPUS', get_var('KDUMP_CPUS')) if length(get_var('KDUMP_CPUS') // '');
     if (is_sle('16+') || is_opensuse) {
         # Enable fadump in configuration file if requested
         set_kdump_config("KDUMP_FADUMP", "true") if get_var('FADUMP');
