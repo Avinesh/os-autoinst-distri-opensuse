@@ -286,6 +286,8 @@ sub write_extra_test_result {
     my ($self, $details) = @_;
     my $dir = bmwqemu::result_dir();
     my $filename = $details->{test_fqn} =~ s/:/_/gr;
+    # A rerun must not overwrite the files of the earlier run.
+    $filename .= '_retry' . ($self->{ltp_attempt} - 1) if ($self->{ltp_attempt} // 1) > 1;
     my $result = 'failed';
     $result = 'passed' if ($details->{test}->{result} eq 'PASS');
     $result = 'skipped' if ($details->{test}->{result} eq 'CONF');
@@ -391,9 +393,8 @@ sub pre_run_hook {
     $self->SUPER::pre_run_hook;
 }
 
-sub run {
+sub run_attempt {
     my ($self, $tinfo) = @_;
-    die 'Need LTP_COMMAND_FILE to know which tests to run' unless $tinfo && $tinfo->runfile;
     my $runfile = $tinfo->runfile;
     my $timeout = get_var('LTP_TIMEOUT') || 900;
     my $is_posix = $runfile =~ m/^\s*openposix\s*$/i;
@@ -460,9 +461,51 @@ sub run {
 
     upload_logs($strace_log) if (check_var_array('LTP_DEBUG', 'strace'));
     script_run('vmstat -w');
+    return $result_export;
+}
+
+sub run {
+    my ($self, $tinfo) = @_;
+    die 'Need LTP_COMMAND_FILE to know which tests to run' unless $tinfo && $tinfo->runfile;
+
+    my $runfile = $tinfo->runfile;
+    my $test = $tinfo->test;
+    my $result_before = $self->{result};
+    my $attempt = 1;
+    my ($result_export, $entry);
+
+    while (1) {
+        $self->{ltp_attempt} = $attempt;
+        $result_export = $self->run_attempt($tinfo);
+        # A timeout never gets here: run_attempt() dies for it.
+        last unless ($self->{result} // '') eq 'fail';
+        # Retries are not supported with LTP_DEBUG, for example a second strace does not work.
+        last if get_var('LTP_DEBUG');
+
+        # ltp_env has the retval of this run, so an entry can select on it.
+        $entry = LTP::WhiteList->new()->find_retry_entry($self->{ltp_env}, $runfile, $test->{name});
+        last unless $entry && $attempt <= $entry->{retry};
+
+        record_info("Retry $attempt/$entry->{retry}", join("\n", "LTP:$runfile:$test->{name} failed, run it again", $entry->{message} // ()));
+        # Forget the failure of this run. Its steps stay in the results.
+        $self->{result} = $result_before;
+        $attempt++;
+    }
+
+    if ($attempt > 1) {
+        if ($result_export->{status} eq 'pass') {
+            my $msg = "LTP:$runfile:$test->{name} needed a rerun: it passed on run $attempt, after " . ($attempt - 1) . " failed run(s)";
+            $self->record_soft_failure_result(join("\n", $msg, $entry->{message} // ()));
+        }
+        else {
+            # Only a pass makes up for a failure, TCONF does not.
+            $self->{result} = 'fail';
+        }
+    }
 
     # reboot unless TCONF or last test
-    $self->do_reboot if (get_var('LTP_REBOOT_AFTER_TEST') && !$test->{last} && $env{retval} != 32);
+    # ltp_env is the %env of the run which just ended. Its retval is the exit code of the test.
+    $self->do_reboot if (get_var('LTP_REBOOT_AFTER_TEST') && !$tinfo->test->{last} && $self->{ltp_env}->{retval} != 32);
 }
 
 # Only propogate death don't create it from failure [2]
@@ -504,6 +547,26 @@ executed by the shell.
 The output of each test case is parsed for lines containing CONF and FAIL.
 If these terms are found in the output then a neutral or fail result will be
 reported, otherwise a pass.
+
+A failed test case is run again, in the same VM and without a reboot, if an
+entry for it in the LTP_KNOWN_ISSUES file has C<retry>. C<retry> is the number
+of extra runs, so C<retry: 3> allows 4 runs in total. The entry takes the same
+selectors as other entries (product, arch, retval, ...). Without C<retval>,
+every failure is retried. C<retval> is a regex for the exit code of the test,
+so write C<^1$> and not C<1>. A timeout (LTP_TIMEOUT) is not retried.
+No retry happens when LTP_DEBUG is set.
+A test case has either a normal known issue entry or a C<retry> entry.
+If a run passes, the module is a soft failure and the failed runs stay visible
+as steps. If all runs fail, the module fails.
+Kernel errors on the serial console (for example Oops or WARNING) are checked
+once, after the last run, for the output of all runs. A kernel error from a
+failed run still fails the module, even if a later run passes. Example:
+
+  openposix:
+    pthread_join_speculative_6-1:
+      - retry: 3
+        retval: ^1$
+        message: Flaky, passes on a rerun
 
 [2] This overrides the default basetest class behaviour because the LTP tests
     are able to continue after most failures (without reverting to a

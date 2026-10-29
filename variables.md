@@ -161,7 +161,7 @@ LIVETEST | boolean | false | Indicates test of live system.
 LTP_COMMAND_FILE | string | | The LTP test command file (e.g. syscalls, cve)
 LTP_COMMAND_EXCLUDE | string | | This regex is used to exclude tests from LTP command file.
 LTP_EXEC_TIMEOUT | integer | 1200 |Used to define --exec-timeout value passed to kirk
-LTP_KNOWN_ISSUES | string | | Used to specify a url for a json file with well known LTP issues. If an error occur which is listed, then the result is overwritten with softfailure.
+LTP_KNOWN_ISSUES | string | | Used to specify a url for a json file with well known LTP issues. If an error occur which is listed, then the result is overwritten with softfailure. An entry with `retry: N` instead runs a failed test up to N more times, and soft-fails it if one run passes.
 LTP_MIN_UPTIME | integer | | Minimum uptime in seconds before LTP tests start. It applies only to the native openQA runner, not to tests run by kirk.
 LTP_REPO | string | | The repo which will be added and is used to install LTP package.
 LTP_PC_RUNLTP_ENV | string | empty | Contains eventual internal environment new parameters for `runltp-ng`, defined with the `--env` option, initialized in a column-separated string format: "PAR1=xxx:PAR2=yyy:...". By default it is empty, undefined.
