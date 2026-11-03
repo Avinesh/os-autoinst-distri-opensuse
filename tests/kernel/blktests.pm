@@ -88,6 +88,11 @@ sub run {
         record_info('blktests version', script_output('rpm -q blktests'));
     }
 
+    if (my $e2fsprogs_repo = get_var('BLKTESTS_E2FSPROGS_REPO')) {
+        zypper_ar($e2fsprogs_repo, name => 'e2fsprogs_repo');
+        # The libraries are rebuilt from the same source, so the vendor changes too
+        install_package('--from e2fsprogs_repo --allow-vendor-change e2fsprogs', trup_apply => 1);
+    }
     record_info('e2fsprogs version', script_output('rpm -q e2fsprogs || true'));
 
     #Prepare configuration, log/results directories
@@ -194,6 +199,12 @@ Defaults to C<https://github.com/linux-blktests/blktests.git>.
 
 Branch or tag to check out. Used only with C<BLKTESTS_INSTALL=from_git>.
 Defaults to the default branch of the repository.
+
+=head2 BLKTESTS_E2FSPROGS_REPO
+
+Optional. URL of a repository to install a custom C<e2fsprogs> package from,
+for example an OBS branch with a fix that is not yet released. If unset, the
+C<e2fsprogs> package of the tested product is used.
 
 =head2 BLKTESTS
 
