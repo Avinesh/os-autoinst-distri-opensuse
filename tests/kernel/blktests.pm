@@ -89,9 +89,12 @@ sub run {
     }
 
     zypper_ar('https://download.opensuse.org/repositories/home:/akumar:/branches:/filesystems/openSUSE_Tumbleweed/', name => 'e2fsprogs_repo');
-    # The libraries are rebuilt from the same source, so the vendor changes too
-    install_package('--from e2fsprogs_repo --allow-vendor-change e2fsprogs', trup_apply => 1);
-    record_info('e2fsprogs version', script_output('rpm -q e2fsprogs || true'));
+    # mke2fs loads libext2fs at run time and the orphan file sizing lives in the
+    # library, so the libraries must come from the same repo as e2fsprogs. The
+    # e2fsprogs package only requires libext2fs2 >= <version>, so installing it
+    # alone leaves the old library in place. The vendor changes for all of them.
+    install_package('--from e2fsprogs_repo --allow-vendor-change e2fsprogs libext2fs2 libcom_err2', trup_apply => 1);
+    record_info('e2fsprogs version', script_output('rpm -q e2fsprogs libext2fs2 libcom_err2 || true'));
 
     #Prepare configuration, log/results directories
     assert_script_run("mkdir -p /etc/blktests");
